@@ -1,0 +1,12 @@
+[Unit]
+Description=gil-sec security monitor + dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%WORKDIR%
+ExecStart=%PNPM% run monitor
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

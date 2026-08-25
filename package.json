@@ -1,0 +1,31 @@
+{
+  "name": "security-monitor",
+  "version": "1.0.0",
+  "description": "Node.js security monitor for detecting and blocking harmful commands",
+  "main": "index.js",
+  "scripts": {
+    "start": "node init && node index.js",
+    "dev": "node init && nodemon index.js",
+    "dashboard": "node dashboard/server.js",
+    "test": "jest",
+    "monitor": "concurrently \"node index.js\" \"node dashboard/server.js\"",
+    "simulate": "node scripts/simulate.js",
+    "startup:install": "node scripts/install-startup.js",
+    "startup:uninstall": "node scripts/uninstall-startup.js"
+  },
+  "author": "Gilbert",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.2",
+  "dependencies": {
+    "axios": "^1.19.0",
+    "chokidar": "^5.0.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14"
+  }
+}

@@ -1,0 +1,11 @@
+services:
+  gil-sec:
+    build: .
+    ports:
+      - "5005:5005"
+      - "8081:8081"
+    environment:
+      - DASHBOARD_PORT=5005
+      - WS_PORT=8081
+    volumes:
+      - ./security.log:/app/security.log

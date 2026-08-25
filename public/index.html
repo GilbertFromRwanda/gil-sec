@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔒 Security Monitor Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>🛡️ Security Monitor Dashboard</h1>
+        <div class="status">
+            <span class="status-dot active"></span>
+            <span>Active</span>
+        </div>
+    </header>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Total Blocks</h3>
+            <div class="stat-number" id="totalBlocks">0</div>
+            <small>All time</small>
+        </div>
+        <div class="stat-card">
+            <h3>Command Blocks</h3>
+            <div class="stat-number" id="commandBlocks">0</div>
+            <small>Commands blocked</small>
+        </div>
+        <div class="stat-card">
+            <h3>FS Blocks</h3>
+            <div class="stat-number" id="fsBlocks">0</div>
+            <small>Filesystem operations</small>
+        </div>
+        <div class="stat-card">
+            <h3>Network Blocks</h3>
+            <div class="stat-number" id="networkBlocks">0</div>
+            <small>Connections blocked</small>
+        </div>
+        <div class="stat-card">
+            <h3>Uptime</h3>
+            <div class="stat-number" id="uptime">0s</div>
+            <small>Since start</small>
+        </div>
+        <div class="stat-card">
+            <h3>Log Entries</h3>
+            <div class="stat-number" id="logEntries">0</div>
+            <small>Total events</small>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="logs-section">
+            <h2>📋 Recent Security Events</h2>
+            <div class="filters">
+                <input type="text" id="searchInput" placeholder="Search logs...">
+                <select id="typeFilter">
+                    <option value="all">All Types</option>
+                    <option value="exec">Command Execution</option>
+                    <option value="fs">Filesystem</option>
+                    <option value="network">Network</option>
+                </select>
+                <button onclick="refreshLogs()">Refresh</button>
+            </div>
+            <div id="logContainer"></div>
+        </div>
+        
+        <div class="rules-section">
+            <h2>📋 Active Rules</h2>
+            <div id="rulesContainer">
+                <!-- Rules will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // WebSocket connection, with automatic reconnect since the dashboard
+        // process (and therefore this socket) can restart independently of
+        // an already-open browser tab. The port comes from the server
+        // (WS_PORT in .env) rather than being hardcoded here.
+        async function connectWebSocket() {
+            let wsPort = 8081;
+            try {
+                const res = await fetch('/api/config');
+                wsPort = (await res.json()).wsPort;
+            } catch (e) {
+                console.error('Failed to load dashboard config, falling back to default WS port:', e);
+            }
+
+            const ws = new WebSocket(`ws://${location.hostname}:${wsPort}`);
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'log') {
+                        addLogEntry(data.data);
+                    } else if (data.type === 'stats') {
+                        updateStats(data.data);
+                    }
+                } catch (e) {
+                    console.error('WebSocket parse error:', e);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = () => {
+                console.warn('WebSocket disconnected, retrying in 2s...');
+                setTimeout(connectWebSocket, 2000);
+            };
+        }
+
+        connectWebSocket();
+
+        // Update statistics
+        function updateStats(stats) {
+            document.getElementById('totalBlocks').textContent = 
+                stats.commands.blocked + stats.filesystem.blocked + stats.network.blocked;
+            document.getElementById('commandBlocks').textContent = stats.commands.blocked;
+            document.getElementById('fsBlocks').textContent = stats.filesystem.blocked;
+            document.getElementById('networkBlocks').textContent = stats.network.blocked;
+            document.getElementById('uptime').textContent = formatUptime(stats.uptime);
+            document.getElementById('logEntries').textContent = stats.logs.totalEntries || 0;
+        }
+        
+        function formatUptime(seconds) {
+            if (seconds < 60) return `${seconds}s`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+        
+        // Add log entry
+        function addLogEntry(entry) {
+            const container = document.getElementById('logContainer');
+            const div = document.createElement('div');
+            div.className = `log-entry ${entry.result?.blocked ? 'blocked' : 'allowed'}`;
+            
+            let command = entry.command || '';
+            if (entry.args && entry.args.length > 0) {
+                command += ' ' + entry.args.join(' ');
+            }
+            
+            div.innerHTML = `
+                <div class="log-header">
+                    <span class="log-time">${formatTime(entry.timestamp)}</span>
+                    <span class="log-type">${entry.type}</span>
+                    ${entry.pid ? `<span class="log-pid">PID ${entry.pid}</span>` : ''}
+                    ${entry.result?.blocked ? '<span class="badge danger">BLOCKED</span>' : '<span class="badge success">ALLOWED</span>'}
+                </div>
+                <div class="log-command">${escapeHtml(command || entry.path || entry.host)}</div>
+                ${entry.result?.rule ? `<div class="log-rule">Rule: ${entry.result.rule.name}</div>` : ''}
+                ${entry.path ? `<div class="log-path">${entry.path}</div>` : ''}
+                ${entry.host ? `<div class="log-path">${entry.host}:${entry.port}</div>` : ''}
+            `;
+            
+            container.prepend(div);
+            
+            // Limit entries
+            while (container.children.length > 100) {
+                container.removeChild(container.lastChild);
+            }
+        }
+        
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Load logs
+        async function loadLogs() {
+            try {
+                const response = await fetch('/api/logs?limit=100');
+                const logs = await response.json();
+                const container = document.getElementById('logContainer');
+                container.innerHTML = '';
+                logs.reverse().forEach(log => addLogEntry(log));
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+            }
+        }
+        
+        // Load stats
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                updateStats(stats);
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+        
+        // Load rules
+        async function loadRules() {
+            try {
+                const response = await fetch('/api/rules');
+                const data = await response.json();
+                const container = document.getElementById('rulesContainer');
+                container.innerHTML = '';
+
+                (data.rules || []).forEach(rule => {
+                    const div = document.createElement('div');
+                    div.className = 'rule-item';
+                    div.innerHTML = `
+                        <div class="rule-header">
+                            <strong>${escapeHtml(rule.name)}</strong>
+                            <span class="badge ${rule.action === 'block' ? 'danger' : 'warning'}">${escapeHtml(rule.action.toUpperCase())}</span>
+                        </div>
+                        <div class="rule-severity">Severity: ${escapeHtml(rule.severity)}</div>
+                        <div class="rule-description">${escapeHtml(rule.description)}</div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Failed to load rules:', error);
+            }
+        }
+        
+        function refreshLogs() {
+            loadLogs();
+        }
+        
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const entries = document.querySelectorAll('.log-entry');
+            entries.forEach(entry => {
+                const text = entry.textContent.toLowerCase();
+                entry.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+        
+        // Filter by type
+        document.getElementById('typeFilter').addEventListener('change', (e) => {
+            const type = e.target.value;
+            const entries = document.querySelectorAll('.log-entry');
+            entries.forEach(entry => {
+                if (type === 'all') {
+                    entry.style.display = '';
+                    return;
+                }
+                const logType = entry.querySelector('.log-type')?.textContent;
+                entry.style.display = logType === type ? '' : 'none';
+            });
+        });
+        
+        // Load data on page load
+        loadLogs();
+        loadStats();
+        loadRules();
+        
+        // Refresh stats every 10 seconds
+        setInterval(loadStats, 10000);
+    </script>
+</body>
+</html>
