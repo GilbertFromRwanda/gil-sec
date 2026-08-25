@@ -1,0 +1,7 @@
+node_modules
+security.log
+*.log
+.pids
+!.env.example
+coverage
+config.bat
