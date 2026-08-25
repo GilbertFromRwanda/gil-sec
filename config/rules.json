@@ -1,0 +1,108 @@
+{
+  "version": "2.0",
+  "rules": [
+    {
+      "id": "R001",
+      "name": "File Deletion",
+      "severity": "critical",
+      "patterns": [
+        "rm\\s+(-rf?|--recursive|--force)",
+        "rmdir\\s+/s",
+        "del\\s+/f"
+      ],
+      "action": "block",
+      "description": "Prevents recursive/force file deletion"
+    },
+    {
+      "id": "R002",
+      "name": "System Modification",
+      "severity": "critical",
+      "patterns": [
+        "chmod\\s+777",
+        "chown\\s+-R",
+        "mount\\s+",
+        "umount\\s+",
+        "fdisk",
+        "mkfs"
+      ],
+      "action": "block",
+      "description": "Blocks dangerous system modifications"
+    },
+    {
+      "id": "R003",
+      "name": "Network Attacks",
+      "severity": "high",
+      "patterns": [
+        "curl\\s+.*\\|.*sh",
+        "wget\\s+.*\\|.*sh",
+        "nc\\s+-e",
+        "telnet\\s+",
+        "ssh\\s+-R"
+      ],
+      "action": "block",
+      "description": "Prevents common network attack vectors"
+    },
+    {
+      "id": "R004",
+      "name": "Process Manipulation",
+      "severity": "high",
+      "patterns": [
+        "kill\\s+-9",
+        "pkill",
+        "killall",
+        "systemctl\\s+(stop|disable)"
+      ],
+      "action": "warn",
+      "description": "Alerts on process termination attempts"
+    },
+    {
+      "id": "R005",
+      "name": "Data Exfiltration",
+      "severity": "critical",
+      "patterns": [
+        "cat\\s+/etc/passwd",
+        "cat\\s+/etc/shadow",
+        "cat\\s+.*\\.(env|pem|key|pk)",
+        "base64\\s+.*\\||curl.*-d"
+      ],
+      "action": "block",
+      "description": "Prevents reading sensitive files"
+    },
+    {
+      "id": "R006",
+      "name": "Command Injection",
+      "severity": "critical",
+      "patterns": [
+        ";.*rm\\s",
+        "\\|\\|.*rm\\s",
+        "&&.*rm\\s",
+        "`.*rm\\s",
+        "\\$\\(.*rm\\s",
+        ";.*wget",
+        ";.*curl"
+      ],
+      "action": "block",
+      "description": "Detects command injection attempts"
+    },
+    {
+      "id": "R007",
+      "name": "Blockchain RPC Access",
+      "severity": "high",
+      "patterns": [
+        "eth-mainnet\\.publicnode\\.com",
+        "ethereum-rpc\\.publicnode\\.com",
+        "cloudflare-eth\\.com",
+        "infura\\.io"
+      ],
+      "action": "block",
+      "description": "Blocks commands referencing known Ethereum RPC endpoints, commonly abused for wallet-draining exfiltration"
+    }
+  ],
+  "whitelist": [
+    "^echo\\s+",
+    "^ls\\s+",
+    "^pwd$",
+    "^whoami$",
+    "^date$"
+  ]
+}
